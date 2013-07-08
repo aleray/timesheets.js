@@ -1380,6 +1380,11 @@ function smilTimeItem(domNode, parentNode, targetNode) {
     self.removeEventListener(endEvents, onendListener);
   };
 
+  //If this item is a media element (audio, video), setup special handling
+  if(targetNode && /^audio|video$/.test(targetNode.nodeName.toLowerCase())) {
+    setupMediaItem(targetNode, this);
+  }
+
   // attach this object to the target element
   if (targetNode && (targetNode != domNode)) { // timesheet item
     // store the timesheet item reference in the 'extTiming' property
@@ -1392,6 +1397,49 @@ function smilTimeItem(domNode, parentNode, targetNode) {
     // store the object reference in the 'timing' property
     domNode.timing = this;
   }
+}
+
+function setupMediaItem(node, item){ //arg1 is the DOM node, ie. the timeNode's target node
+	EVENTS.bind(node,'begin',function(){
+		//i can't call media's play() before the media is ready.
+		if(!(node.readyState>2)){
+			function playMedia(){
+				node.currentTime=0;
+				node.play();
+				node.removeEventListener("canplay", playMedia, false);
+			}
+			node.addEventListener("canplay", playMedia, false);
+		}
+		else{
+			node.currentTime=0;
+			node.play();
+		} 
+	});
+	EVENTS.bind(node,'end',function(){
+		node.pause(); //stop
+	});
+	// handle playback repetition:
+	
+	if( item.repeatCount > 1 || item.repeatDur ){
+		EVENTS.bind(node, 'timeupdate', function(e){
+
+			//to call this code, 'dur' should be shorter than media's implicit duration. Otherwise, this code will never be called, coz 'time' won't ever be larger than 'dur'
+			if(item.repeatCount && item.dur){
+				if(this.currentTime>item.dur) node.currentTime=0; //repeat from begining
+			}
+			//if repeatDur< implicit_duration, then there is no need to *repeat* playback. If repeatDur>implicit_duration, then the 'ended' event will tell us when to repeat. In either case, we don't need to call code inside this else-if.
+			else if(item.repeatDur){
+		
+			}
+	    });
+	
+		EVENTS.bind(node,'ended',function(e){ //'ended' is an HTML5 Media event
+			if(item.isActive()){ 
+				node.currentTime=0; //set initial time before play
+				node.play(); 
+			}
+		});
+	}
 }
 
 
